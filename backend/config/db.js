@@ -2,7 +2,8 @@ const mongoose = require("mongoose");
 
 const connectDB = async () => {
   try {
-    await mongoose.connect(process.env.MONGO_URL);
+    await mongoose.connect("mongodb+srv://ankit:ankit123@cluster1.eumhbfh.mongodb.net/studentDriverDB?retryWrites=true&w=majority"
+);
     console.log("MongoDB Connected");
   } catch (error) {
     console.error("MongoDB Error:", error);
@@ -11,3 +12,5 @@ const connectDB = async () => {
 };
 
 module.exports = connectDB;
+
+
