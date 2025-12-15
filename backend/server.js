@@ -5,7 +5,7 @@ const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 
 const StudentChat = require("./models/StudentChat.js");
-const DriverChat = require("./models/DriverChat.js");
+const DriverChat = require("./models/driverChat.js");
 
 dotenv.config();
 connectDB();
@@ -120,3 +120,4 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () =>
   console.log(`Server running on port ${PORT}`)
 );
+
