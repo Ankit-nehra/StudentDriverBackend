@@ -4,8 +4,8 @@ const cors = require("cors");
 const dotenv = require("dotenv");
 const connectDB = require("./config/db");
 
-const StudentChat = require("./models/StudentChat.js");
-const DriverChat = require("./models/driverChat.js");
+const StudentChat = require("./models/studentChat");
+const DriverChat = require("./models/DriverChat");
 
 dotenv.config();
 connectDB();
@@ -21,80 +21,71 @@ const server = http.createServer(app);
 const { Server } = require("socket.io");
 
 const io = new Server(server, {
-  cors: {
-    origin: "https://student-driver-frontend-cambr91nv-ankit-nehras-projects.vercel.app",
-    methods: ["GET", "POST"],
+  cors: { 
+    origin: "*",
+    methods: ["GET", "POST"] },
     credentials: true
-  },
 });
 
 let onlineStudents = [];
 let onlineDrivers = [];
 
 io.on("connection", (socket) => {
-  console.log("User connected:", socket.id);
+  console.log("Connected:", socket.id);
 
-  socket.on("join", async ({ name, rollno, role, location, course }) => {
-    // ✅ UPDATED: course bhi store kiya
-    socket.user = { name, rollno, role, location, course };
+  socket.on("join", async ({ name, rollno, role, course, location }) => {
+    socket.user = { name, rollno, role, course, location };
 
     if (role === "student") {
-      onlineStudents = onlineStudents.filter(
-        (s) => s.rollno !== rollno
-      );
+      onlineStudents = onlineStudents.filter(s => s.rollno !== rollno);
       onlineStudents.push(socket.user);
 
-      const otherStudents = onlineStudents.filter(
-        (s) => s.rollno !== rollno
+      // 🔥 SEND INITIAL DATA
+      socket.emit(
+        "onlineStudents",
+        onlineStudents.filter(s => s.rollno !== rollno)
       );
+      socket.emit("onlineDrivers", onlineDrivers);
 
-      io.emit("onlineStudents", otherStudents);
-
-      const history = await StudentChat.find()
-        .sort({ timestamp: 1 })
-        .limit(50);
+      const history = await StudentChat.find().sort({ timestamp: 1 });
       socket.emit("chatHistory", history);
     }
 
     if (role === "driver") {
-      onlineDrivers = onlineDrivers.filter(
-        (d) => d.rollno !== rollno
-      );
+      onlineDrivers = onlineDrivers.filter(d => d.rollno !== rollno);
       onlineDrivers.push(socket.user);
 
-      // ✅ UPDATED: poori list emit
-      io.emit("onlineDrivers", onlineDrivers);
+      socket.emit(
+        "onlineDrivers",
+        onlineDrivers.filter(d => d.rollno !== rollno)
+      );
 
-      const history = await DriverChat.find()
-        .sort({ timestamp: 1 })
-        .limit(50);
+      const history = await DriverChat.find().sort({ timestamp: 1 });
       socket.emit("chatHistory", history);
     }
+
+    broadcastLists();
   });
 
-  socket.on("sendMessage", async (message) => {
+  socket.on("sendMessage", async ({ message, role }) => {
     if (!socket.user) return;
 
-    if (socket.user.role === "student") {
-      const msg = new StudentChat({
+    if (role === "student") {
+      const chat = await StudentChat.create({
         name: socket.user.name,
         rollno: socket.user.rollno,
         message,
-        timestamp: new Date(),
       });
-      await msg.save();
-      io.emit("receiveMessage", msg);
+      io.emit("receiveMessage", chat);
     }
 
-    if (socket.user.role === "driver") {
-      const msg = new DriverChat({
+    if (role === "driver") {
+      const chat = await DriverChat.create({
         name: socket.user.name,
         vehicleNo: socket.user.rollno,
         message,
-        timestamp: new Date(),
       });
-      await msg.save();
-      io.emit("receiveDriverMessage", msg);
+      io.emit("receiveDriverMessage", chat);
     }
   });
 
@@ -103,24 +94,43 @@ io.on("connection", (socket) => {
 
     if (socket.user.role === "student") {
       onlineStudents = onlineStudents.filter(
-        (s) => s.rollno !== socket.user.rollno
+        s => s.rollno !== socket.user.rollno
       );
-      io.emit("onlineStudents", onlineStudents);
     }
 
     if (socket.user.role === "driver") {
       onlineDrivers = onlineDrivers.filter(
-        (d) => d.rollno !== socket.user.rollno
+        d => d.rollno !== socket.user.rollno
       );
-      io.emit("onlineDrivers", onlineDrivers);
     }
+
+    broadcastLists();
+    console.log("Disconnected:", socket.id);
   });
+
+  function broadcastLists() {
+    io.sockets.sockets.forEach((s) => {
+      if (!s.user) return;
+
+      if (s.user.role === "student") {
+        s.emit(
+          "onlineStudents",
+          onlineStudents.filter(st => st.rollno !== s.user.rollno)
+        );
+        s.emit("onlineDrivers", onlineDrivers);
+      }
+
+      if (s.user.role === "driver") {
+        s.emit(
+          "onlineDrivers",
+          onlineDrivers.filter(d => d.rollno !== s.user.rollno)
+        );
+      }
+    });
+  }
 });
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () =>
-  console.log(`Server running on port ${PORT}`)
+  console.log(`Server running on ${PORT}`)
 );
-
-
-
