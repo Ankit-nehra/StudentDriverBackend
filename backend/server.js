@@ -40,7 +40,6 @@ io.on("connection", (socket) => {
       onlineStudents = onlineStudents.filter(s => s.rollno !== rollno);
       onlineStudents.push(socket.user);
 
-      // 🔥 SEND INITIAL DATA
       socket.emit(
         "onlineStudents",
         onlineStudents.filter(s => s.rollno !== rollno)
@@ -66,6 +65,20 @@ io.on("connection", (socket) => {
 
     broadcastLists();
   });
+
+  // === NEW EVENT: BOOK AUTO ===
+socket.on("bookAuto", () => {
+  if (!socket.user || socket.user.role !== "student") return;
+
+  const studentInfo = { name: socket.user.name, rollno: socket.user.rollno };
+
+  // Notify all connected drivers
+  Array.from(io.sockets.sockets.values())
+    .filter(s => s.user && s.user.role === "driver")
+    .forEach(driverSocket => driverSocket.emit("bookAuto", studentInfo));
+});
+
+  // ===============================
 
   socket.on("sendMessage", async ({ message, role }) => {
     if (!socket.user) return;
@@ -134,4 +147,3 @@ const PORT = process.env.PORT || 5000;
 server.listen(PORT, () =>
   console.log(`Server running on ${PORT}`)
 );
-
